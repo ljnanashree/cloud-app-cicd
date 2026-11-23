@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}500 - Internal Server Error | CloudPulse{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-card">
+        <div class="error-badge bg-rose">500 Error</div>
+        <h1 class="error-title">Server Encountered an Error</h1>
+        <p class="error-desc">An unexpected issue occurred while processing your request. The incident has been recorded in the application logs.</p>
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">Return to Dashboard</a>
+            <a href="/health" class="btn btn-outline">Check System Health</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

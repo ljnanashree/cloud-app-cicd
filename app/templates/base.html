@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CloudPulse | Cloud Project Management & Observability{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+                        <path d="m11 13 2-2 2 2"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">CloudPulse</span>
+                    <span class="brand-badge">v{{ app_version }}</span>
+                </div>
+            </div>
+
+            <div class="nav-status-group">
+                <div class="health-pill" id="nav-health-status" title="Real-time Cloud Service Health">
+                    <span class="status-dot healthy"></span>
+                    <span id="nav-health-text">Cloud Healthy</span>
+                </div>
+                <div class="db-pill" id="nav-db-pill">
+                    <span class="db-icon">🗄️</span>
+                    <span id="nav-db-type">{{ db_type }}</span>
+                    <span class="db-latency" id="nav-db-latency">{{ db_latency }}ms</span>
+                </div>
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle Dark/Light Mode" title="Toggle theme">
+                    <span class="theme-icon-light">☀️</span>
+                    <span class="theme-icon-dark">🌙</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-wrapper">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-container">
+            <p>CloudPulse &bull; Python Flask + Cloud Database + GitHub Actions CI/CD + Cloud Deployment</p>
+            <div class="footer-links">
+                <a href="/health" target="_blank" class="footer-link">Health API</a>
+                <a href="/api/metrics" target="_blank" class="footer-link">Metrics API</a>
+                <a href="/api/tasks" target="_blank" class="footer-link">Tasks API</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

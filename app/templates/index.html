@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <!-- Hero / Metrics Section -->
+    <section class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-icon bg-indigo">📋</div>
+            <div class="metric-info">
+                <span class="metric-label">Total Cloud Tasks</span>
+                <span class="metric-value" id="stat-total-tasks">{{ stats.total_tasks }}</span>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-icon bg-amber">⚡</div>
+            <div class="metric-info">
+                <span class="metric-label">Active / In Progress</span>
+                <span class="metric-value" id="stat-in-progress">{{ stats.status_breakdown.get('In Progress', 0) }}</span>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-icon bg-emerald">✅</div>
+            <div class="metric-info">
+                <span class="metric-label">Completed Tasks</span>
+                <span class="metric-value" id="stat-completed">{{ stats.status_breakdown.get('Completed', 0) }}</span>
+            </div>
+            <div class="metric-progress-wrapper">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="stat-progress-bar" style="width: {{ stats.completion_rate }}%;"></div>
+                </div>
+                <span class="progress-text" id="stat-completion-rate">{{ stats.completion_rate }}% done</span>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-icon bg-cyan">🌐</div>
+            <div class="metric-info">
+                <span class="metric-label">Database Engine</span>
+                <span class="metric-value text-sm">{{ db_type }}</span>
+            </div>
+            <span class="metric-subtext">Latency: <strong id="stat-db-latency">{{ db_latency }}ms</strong></span>
+        </div>
+    </section>
+
+    <!-- Main Workspace Split: Tasks Area + Observability Sidebar -->
+    <div class="workspace-layout">
+
+        <!-- Tasks Main Column -->
+        <section class="tasks-section">
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">Cloud Workload Tasks</h1>
+                    <p class="section-subtitle">Manage, schedule, and track cloud infrastructure and software releases.</p>
+                </div>
+                <button class="btn btn-primary" id="open-create-modal-btn">
+                    <span class="btn-icon">＋</span> New Task
+                </button>
+            </div>
+
+            <!-- Filter & Search Toolbar -->
+            <div class="toolbar-card">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="task-search-input" placeholder="Search tasks by title, category, or description..." autocomplete="off">
+                </div>
+
+                <div class="filters-group">
+                    <select id="status-filter" class="form-select" aria-label="Filter by Status">
+                        <option value="">All Statuses</option>
+                        <option value="Backlog">Backlog</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Review">Review</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+
+                    <select id="priority-filter" class="form-select" aria-label="Filter by Priority">
+                        <option value="">All Priorities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                    </select>
+
+                    <button class="btn btn-outline" id="refresh-tasks-btn" title="Refresh task list">
+                        ↻ Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Task List Container -->
+            <div class="tasks-container" id="tasks-list">
+                <div class="loading-state" id="tasks-loading">
+                    <div class="spinner"></div>
+                    <p>Loading tasks from database...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Side Observability & Activity Column -->
+        <aside class="sidebar-section">
+            
+            <!-- Live Cloud Diagnostic Card -->
+            <div class="card diagnostic-card">
+                <div class="card-header">
+                    <h3 class="card-title">Cloud Pipeline Health</h3>
+                    <span class="pulse-indicator"></span>
+                </div>
+                <div class="card-body diagnostic-body">
+                    <div class="diag-row">
+                        <span class="diag-label">Application Status</span>
+                        <span class="badge badge-success" id="diag-app-status">Healthy (200 OK)</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">Database Type</span>
+                        <span class="badge badge-info" id="diag-db-type">{{ db_type }}</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">Database Ping</span>
+                        <span class="diag-value" id="diag-db-ping">{{ db_latency }} ms</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">CI/CD Engine</span>
+                        <span class="badge badge-purple">GitHub Actions</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">Deployment Target</span>
+                        <span class="badge badge-cyan">Render Cloud</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">Environment</span>
+                        <span class="badge badge-outline" id="diag-env">production-ready</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="/health" target="_blank" class="btn btn-sm btn-ghost">Open /health API ↗</a>
+                    <a href="/api/metrics" target="_blank" class="btn btn-sm btn-ghost">Open /api/metrics ↗</a>
+                </div>
+            </div>
+
+            <!-- Real-time Activity Stream -->
+            <div class="card activity-card">
+                <div class="card-header">
+                    <h3 class="card-title">Activity Audit Stream</h3>
+                </div>
+                <div class="card-body">
+                    <div class="activity-timeline" id="activity-timeline">
+                        {% for act in recent_activity %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <p class="timeline-text">{{ act.details }}</p>
+                                <span class="timeline-time">{{ act.created_at }}</span>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="empty-hint">No audit events logged yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </div>
+</div>
+
+<!-- Modal: Create / Edit Task -->
+<div class="modal-backdrop" id="task-modal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modal-title">Create New Task</h3>
+            <button class="modal-close" id="modal-close-btn" aria-label="Close dialog">&times;</button>
+        </div>
+        <form id="task-form">
+            <input type="hidden" id="task-id" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="task-title" class="form-label">Task Title <span class="required">*</span></label>
+                    <input type="text" id="task-title" class="form-input" placeholder="e.g. Set up Cloudflare DNS records" required maxlength="200">
+                </div>
+
+                <div class="form-group">
+                    <label for="task-desc" class="form-label">Description</label>
+                    <textarea id="task-desc" class="form-textarea" rows="3" placeholder="Provide details, deliverables, or checklist..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task-status" class="form-label">Status</label>
+                        <select id="task-status" class="form-select">
+                            <option value="Backlog">Backlog</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Review">Review</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task-priority" class="form-label">Priority</label>
+                        <select id="task-priority" class="form-select">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                            <option value="Urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task-category" class="form-label">Category</label>
+                        <input type="text" id="task-category" class="form-input" placeholder="e.g. Backend, DevOps, UI" value="General">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task-due" class="form-label">Due Date</label>
+                        <input type="date" id="task-due" class="form-input">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="modal-submit-btn">Save Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

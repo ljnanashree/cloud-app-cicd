@@ -1,0 +1,124 @@
+name: CloudPulse CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # =========================================================================
+  # Stage 1: Continuous Integration (Lint, Build, & Automated Testing)
+  # =========================================================================
+  build-and-test:
+    name: Build & Test Suite
+    runs-on: ubuntu-latest
+
+    services:
+      # Optional PostgreSQL service container for integration tests
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Code Quality & Syntax Linting (Flake8)
+        run: |
+          # Stop build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,.venv
+          # Exit-zero treats all errors as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,.venv
+
+      - name: Run Automated Pytest Suite with Coverage
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: sqlite:///:memory:
+        run: |
+          pytest tests/ -v --cov=app --cov-report=term --cov-report=xml:coverage.xml
+
+      - name: Verify PostgreSQL Cloud Adapter Connection
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+        run: |
+          python -c "from app.database import DatabaseManager; db = DatabaseManager('postgresql://testuser:testpassword@localhost:5432/testdb'); db.init_db(); healthy, latency, t = db.health_check(); print(f'Postgres Health: {healthy}, Type: {t}, Latency: {latency}ms'); assert healthy"
+
+      - name: Upload Test Coverage Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  # =========================================================================
+  # Stage 2: Continuous Deployment (Render Cloud Platform)
+  # =========================================================================
+  deploy:
+    name: Continuous Deployment to Cloud
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Cloud Webhook Deployment
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "⚠️ RENDER_DEPLOY_HOOK_URL secret not set. Skipping live trigger."
+            echo "To enable automated deployment, add RENDER_DEPLOY_HOOK_URL in GitHub Repo Settings -> Secrets."
+          else
+            echo "🚀 Triggering Render deployment webhook..."
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
+            echo "Render response status: $HTTP_STATUS"
+            if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
+              echo "✅ Deployment triggered successfully on Render!"
+            else
+              echo "❌ Render deploy trigger returned unexpected HTTP $HTTP_STATUS"
+              exit 1
+            fi
+          fi
+
+      - name: Post-Deployment Health Check Verification
+        env:
+          APP_LIVE_URL: ${{ secrets.APP_LIVE_URL }}
+        run: |
+          if [ -n "$APP_LIVE_URL" ]; then
+            echo "Waiting for deployment to stabilize..."
+            sleep 15
+            HEALTH_URL="${APP_LIVE_URL%/}/health"
+            echo "Probing $HEALTH_URL..."
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL")
+            echo "Live Health Check HTTP: $STATUS"
+            if [ "$STATUS" -eq 200 ]; then
+              echo "✅ CloudPulse is LIVE and HEALTHY!"
+            else
+              echo "⚠️ Health check returned $STATUS"
+            fi
+          else
+            echo "APP_LIVE_URL secret not configured; skipping live probe."
+          fi
